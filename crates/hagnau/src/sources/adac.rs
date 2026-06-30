@@ -1,29 +1,139 @@
-use scraper::CongestionSource;
+use scraper::{CongestionDirection, CongestionSource};
+
+#[derive(Debug)]
+pub struct ADACNewsItem {
+    street: String,
+    street_sections: Vec<String>,
+
+    description: String,
+    congestion_minutes: f64,
+}
 
 #[derive(Default)]
 pub struct ADACFilters {
-    federal_state: Option<String>,
-    street: Option<String>,
+    any_section_contains_one_of: Vec<String>,
+    description_contains_one_of: Vec<String>,
 }
 
 impl ADACFilters {
-    pub fn federal_state(mut self, federal_state: impl Into<String>) -> Self {
-        self.federal_state = Some(federal_state.into());
+    pub fn any_section_contains(mut self, section: impl Into<String>) -> Self {
+        self.any_section_contains_one_of.push(section.into());
         self
     }
 
-    pub fn street(mut self, street: impl Into<String>) -> Self {
-        self.street = Some(street.into());
+    pub fn description_contains(mut self, description: impl Into<String>) -> Self {
+        self.description_contains_one_of.push(description.into());
         self
+    }
+}
+
+impl ADACFilters {
+    fn apply(
+        &self,
+        items: impl Iterator<Item = ADACNewsItem>,
+    ) -> impl Iterator<Item = ADACNewsItem> {
+        items.filter(|item| {
+            if !self.any_section_contains_one_of.is_empty()
+                && !self
+                    .any_section_contains_one_of
+                    .iter()
+                    .any(|filter_section| {
+                        let filter_section = filter_section.to_lowercase();
+                        item.street_sections
+                            .iter()
+                            .any(|section| section.to_lowercase().contains(&filter_section))
+                    })
+            {
+                return false;
+            }
+
+            if !self.description_contains_one_of.is_empty()
+                && !self
+                    .description_contains_one_of
+                    .iter()
+                    .any(|filter_description| {
+                        item.description
+                            .to_lowercase()
+                            .contains(&filter_description.to_lowercase())
+                    })
+            {
+                return false;
+            }
+
+            true
+        })
+    }
+}
+
+#[derive(Debug)]
+pub enum ADACStreet {
+    FederalRoad(String),
+    Highway(String),
+}
+
+impl ADACStreet {
+    pub fn federal_road(name: impl Into<String>) -> Self {
+        Self::FederalRoad(name.into())
+    }
+
+    pub fn highway(name: impl Into<String>) -> Self {
+        Self::Highway(name.into())
+    }
+
+    fn street_name(&self) -> &str {
+        match self {
+            ADACStreet::FederalRoad(name) | ADACStreet::Highway(name) => name.as_str(),
+        }
+    }
+
+    fn street_type(&self) -> &str {
+        match self {
+            ADACStreet::FederalRoad(_) => "FederalRoad",
+            ADACStreet::Highway(_) => "Highway",
+        }
     }
 }
 
 /// ADAC congestion source
 ///
 /// Example request:
-/// https://www.adac.de/bff/?operationName=TrafficNews&variables=%7B%22filter%22%3A%7B%22country%22%3A%22D%22%2C%22federalState%22%3A%22BW%22%2C%22street%22%3A%22B31%22%2C%22showConstructionSites%22%3Afalse%2C%22pageNumber%22%3A1%7D%7D&extensions=%7B%22persistedQuery%22%3A%7B%22version%22%3A1%2C%22sha256Hash%22%3A%221166f30b5a011b4a848c0d75f78a64f7b5e1f721ca71498b099cd1173597888f%22%7D%7D
+/// https://www.adac.de/verkehr/verkehrsinformationen/de/baden-wuerttemberg/?country=D&federalState=BW&street=B31&streetType=FederalRoad&showConstructionSites=false&pageNumber=1&submit=true&resetSearchParams=false
 pub struct ADACSource {
+    country: String,
+    federal_state: String,
+    street: ADACStreet,
+
     filters: ADACFilters,
+    direction_classifier: Option<Box<dyn Fn(&ADACNewsItem) -> CongestionDirection>>,
+}
+
+impl ADACSource {
+    pub fn new(
+        country: impl Into<String>,
+        federal_state: impl Into<String>,
+        street: ADACStreet,
+    ) -> Self {
+        Self {
+            country: country.into(),
+            federal_state: federal_state.into(),
+            street: street.into(),
+            filters: ADACFilters::default(),
+            direction_classifier: None,
+        }
+    }
+
+    pub fn with_filters(mut self, filters: ADACFilters) -> Self {
+        self.filters = filters;
+        self
+    }
+
+    pub fn with_direction_classifier(
+        mut self,
+        classifier: impl Fn(&ADACNewsItem) -> CongestionDirection + 'static,
+    ) -> Self {
+        self.direction_classifier = Some(Box::new(classifier));
+        self
+    }
 }
 
 impl CongestionSource for ADACSource {
@@ -32,6 +142,98 @@ impl CongestionSource for ADACSource {
     }
 
     fn poll(&self) -> Option<scraper::CongestionAmount> {
-        None
+        let url = reqwest::Url::parse_with_params(
+            "https://www.adac.de/verkehr/verkehrsinformationen/de/baden-wuerttemberg/",
+            [
+                ("country", self.country.as_str()),
+                ("federalState", self.federal_state.as_str()),
+                ("street", self.street.street_name()),
+                ("streetType", self.street.street_type()),
+                ("showConstructionSites", "false"),
+                ("pageNumber", "1"),
+                ("submit", "true"),
+                ("resetSearchParams", "false"),
+            ],
+        )
+        .unwrap();
+
+        let result = reqwest::blocking::get(url)
+            .inspect_err(|err| println!("[ADAC source] failed to fetch: {}", err))
+            .ok()?
+            .text()
+            .inspect_err(|err| println!("[ADAC source] failed to parse: {}", err))
+            .ok()?;
+
+        let document = html_scraper::Html::parse_document(result.as_str());
+        let news_items_selector = html_scraper::Selector::parse(
+            "div[data-testid=\"VM-results\"] > div[data-testid=\"VM-news-item\"]",
+        )
+        .unwrap();
+
+        let news_items_elements = document.select(&news_items_selector);
+        let news_items = news_items_elements
+            .filter_map(|element| element.child_elements().nth(1))
+            .filter_map(|element| {
+                let child_elements = element.child_elements().collect::<Vec<_>>();
+                if child_elements.len() < 3 {
+                    return None;
+                }
+
+                let street_and_sections = &child_elements[0];
+                let street = street_and_sections
+                    .child_elements()
+                    .nth(0)?
+                    .text()
+                    .nth(0)?
+                    .to_string();
+                let sections = street_and_sections
+                    .child_elements()
+                    .nth(1)?
+                    .text()
+                    .map(|s| s.to_string())
+                    .collect::<Vec<_>>();
+
+                let description = child_elements[1].inner_html();
+                let congestion_minutes = child_elements[2]
+                    .child_elements()
+                    .nth(1)?
+                    .text()
+                    .find_map(|t| t.ends_with("Minuten").then(|| t.split_once(' ').unwrap().0))?
+                    .parse()
+                    .ok()?;
+
+                Some(ADACNewsItem {
+                    street,
+                    street_sections: sections,
+                    description,
+                    congestion_minutes,
+                })
+            });
+
+        let filtered_items = self.filters.apply(news_items);
+
+        let (inbound_minutes, outbound_minutes) = filtered_items
+            .map(|item| {
+                let direction = self
+                    .direction_classifier
+                    .as_ref()
+                    .map(|dc| dc(&item))
+                    .unwrap_or(CongestionDirection::Both);
+
+                (item.congestion_minutes, direction)
+            })
+            .fold(
+                (0.0, 0.0),
+                |(inbound, outbound), (minutes, direction)| match direction {
+                    CongestionDirection::Both => (inbound + minutes, outbound + minutes),
+                    CongestionDirection::Inbound => (inbound + minutes, outbound),
+                    CongestionDirection::Outbound => (inbound, outbound + minutes),
+                },
+            );
+
+        Some(scraper::CongestionAmount::new(
+            scraper::CongestionUnit::Minutes(inbound_minutes),
+            scraper::CongestionUnit::Minutes(outbound_minutes),
+        ))
     }
 }
