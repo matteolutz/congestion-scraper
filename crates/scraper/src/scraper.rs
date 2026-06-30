@@ -73,6 +73,14 @@ impl CongestionScraper {
 
         let entries = self.sources.iter().filter_map(|source| {
             let congestion_amount = source.poll()?;
+
+            #[cfg(debug_assertions)]
+            println!(
+                "[CongestionScraper] Source {:?} returned {:?}",
+                source.source_id(),
+                congestion_amount
+            );
+
             Some(CongestionEntry::new(
                 now,
                 source.source_id(),
