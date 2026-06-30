@@ -1,0 +1,4 @@
+/target
+
+# Testing environment
+db.sql

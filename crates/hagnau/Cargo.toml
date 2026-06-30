@@ -1,0 +1,10 @@
+[package]
+name = "hagnau"
+version.workspace = true
+edition.workspace = true
+
+[dependencies]
+regex = "1.12.4"
+reqwest = { version = "0.13.4", features = ["blocking", "json"] }
+scraper.workspace = true
+serde = { version = "1.0.228", features = ["derive"] }
