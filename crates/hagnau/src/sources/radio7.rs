@@ -45,18 +45,20 @@ impl Radio7Filters {
         items: impl Iterator<Item = Radio7ApiTraffic>,
     ) -> impl Iterator<Item = Radio7ApiTraffic> {
         items.filter(|item| {
-            if !self
-                .title_contains
-                .iter()
-                .any(|title| item.title.to_lowercase().contains(title))
+            if !self.title_contains.is_empty()
+                && !self
+                    .title_contains
+                    .iter()
+                    .any(|title| item.title.to_lowercase().contains(title))
             {
                 return false;
             }
 
-            if !self
-                .road_name_equals
-                .iter()
-                .any(|road_name| &item.road_name == road_name)
+            if !self.road_name_equals.is_empty()
+                && !self
+                    .road_name_equals
+                    .iter()
+                    .any(|road_name| &item.road_name == road_name)
             {
                 return false;
             }
