@@ -10,7 +10,7 @@ pub struct Radio7ApiTraffic {
     pub description: String,
     pub road_type: String,
     pub road_letter: String,
-    pub road_number: u32,
+    pub road_number: Option<u32>,
     pub road_name: String,
     pub keywords: Vec<String>,
 }
