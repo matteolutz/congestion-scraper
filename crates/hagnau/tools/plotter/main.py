@@ -24,10 +24,9 @@ def load_data(file_name: str):
                 current_timestamp = row_timestamp
             elif current_timestamp != row_timestamp:
                 parsed_time = dateutil.parser.parse(current_timestamp)
-
                 data[parsed_time] = current_graphs
-                current_graphs = {}
 
+                current_graphs = {}
                 current_timestamp = row_timestamp
 
             current_graphs[get_source_and_direction_key(row_source, "inbound")] = (
@@ -36,6 +35,9 @@ def load_data(file_name: str):
             current_graphs[get_source_and_direction_key(row_source, "outbound")] = (
                 row_outbound_minutes
             )
+
+    parsed_time = dateutil.parser.parse(current_timestamp)
+    data[parsed_time] = current_graphs
 
     return data
 
