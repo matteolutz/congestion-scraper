@@ -79,13 +79,19 @@ static REGEX: LazyLock<regex::Regex> = LazyLock::new(|| {
 pub struct Radio7Source {
     filters: Radio7Filters,
     direction_classifier: Option<Box<dyn Fn(&Radio7ApiTraffic) -> CongestionDirection>>,
+
+    client: reqwest::blocking::Client,
 }
 
 impl Radio7Source {
     pub fn new() -> Self {
+        let client = reqwest::blocking::Client::new();
+
         Self {
             filters: Radio7Filters::default(),
             direction_classifier: None,
+
+            client,
         }
     }
 
@@ -109,16 +115,18 @@ impl CongestionSource for Radio7Source {
     }
 
     fn poll(&self) -> Option<scraper::CongestionAmount> {
-        let all_warnings: Radio7ApiResponse =
-            reqwest::blocking::get("https://www.radio7.de/traffic")
-                .inspect_err(|err| {
-                    println!("[RADIO7 source] Failed to fetch traffic: {}", err);
-                })
-                .and_then(|res| res.json())
-                .inspect_err(|err| {
-                    println!("[RADIO7 source] Failed to parse traffic: {}", err);
-                })
-                .ok()?;
+        let all_warnings: Radio7ApiResponse = self
+            .client
+            .get("https://www.radio7.de/traffic")
+            .send()
+            .inspect_err(|err| {
+                println!("[RADIO7 source] Failed to fetch traffic: {}", err);
+            })
+            .and_then(|res| res.json())
+            .inspect_err(|err| {
+                println!("[RADIO7 source] Failed to parse traffic: {}", err);
+            })
+            .ok()?;
 
         let (inbound_minutes, outbound_minutes): (f64, f64) = self
             .filters

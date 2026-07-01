@@ -109,6 +109,8 @@ pub struct ADACSource {
 
     filters: ADACFilters,
     direction_classifier: Option<Box<dyn Fn(&ADACNewsItem) -> CongestionDirection>>,
+
+    client: reqwest::blocking::Client,
 }
 
 impl ADACSource {
@@ -117,12 +119,15 @@ impl ADACSource {
         federal_state: impl Into<String>,
         street: ADACStreet,
     ) -> Self {
+        let client = reqwest::blocking::Client::new();
+
         Self {
             country: country.into(),
             federal_state: federal_state.into(),
             street: street.into(),
             filters: ADACFilters::default(),
             direction_classifier: None,
+            client,
         }
     }
 
@@ -167,7 +172,10 @@ impl CongestionSource for ADACSource {
             )
             .unwrap();
 
-            let result = reqwest::blocking::get(url)
+            let result = self
+                .client
+                .get(url)
+                .send()
                 .inspect_err(|err| println!("[ADAC source] failed to fetch: {}", err))
                 .ok()?
                 .text()
