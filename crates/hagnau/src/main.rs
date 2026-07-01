@@ -1,4 +1,4 @@
-use scraper::{CongestionDirection, CongestionScraper, CongestionSource};
+use scraper::{CongestionDirection, CongestionScraper};
 
 use crate::sources::{ADACFilters, ADACSource, Radio7Filters, Radio7Source};
 
