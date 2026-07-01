@@ -1,4 +1,4 @@
-use scraper::{CongestionDirection, CongestionScraper};
+use scraper::{CongestionDirection, CongestionScraper, CongestionSource};
 
 use crate::sources::{ADACFilters, ADACSource, Radio7Filters, Radio7Source};
 
@@ -12,12 +12,22 @@ pub fn main() {
 
     let adac_b31 = ADACSource::new("D", "BW", sources::ADACStreet::federal_road("B31"))
         .with_filters(ADACFilters::default().any_section_contains("hagnau"))
-        .with_direction_classifier(|_| todo!("direction classifier for ADAC source"));
+        .with_direction_classifier(|item| {
+            if item
+                .description
+                .to_lowercase()
+                .contains("richtung friedrichshafen")
+            {
+                CongestionDirection::Outbound
+            } else {
+                CongestionDirection::Inbound
+            }
+        });
 
     let radio7_b31 = Radio7Source::new()
         .with_filters(Radio7Filters::default().road_name("B31").title("hagnau"))
-        .with_direction_classifier(|traffic| {
-            if traffic
+        .with_direction_classifier(|item| {
+            if item
                 .title
                 .to_lowercase()
                 .contains("richtung friedrichshafen")
