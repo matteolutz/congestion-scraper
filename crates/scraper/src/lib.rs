@@ -9,3 +9,6 @@ pub use database::*;
 
 mod scraper;
 pub use scraper::*;
+
+mod view;
+pub use view::*;

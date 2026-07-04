@@ -1,8 +1,14 @@
 [package]
-name = "hagnau"
+name = "hagnau_model"
 version.workspace = true
 edition.workspace = true
 
 [dependencies]
 hagnau_sources.workspace = true
 scraper.workspace = true
+
+itertools = "0.15.0"
+
+smartcore = "0.5.0"
+
+chrono = "0.4.45"

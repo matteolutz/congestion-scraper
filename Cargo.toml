@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/scraper", "crates/hagnau"]
+members = ["crates/scraper", "crates/hagnau_sources", "crates/hagnau", "crates/hagnau_model"]
 resolver = "2"
 
 [workspace.package]
@@ -8,3 +8,4 @@ edition = "2024"
 
 [workspace.dependencies]
 scraper = { path = "./crates/scraper" }
+hagnau_sources = { path = "./crates/hagnau_sources" }

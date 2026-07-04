@@ -8,7 +8,7 @@ pub enum CongestionUnit {
 impl CongestionUnit {
     pub fn as_minutes(&self) -> f64 {
         match self {
-            CongestionUnit::Kilometers(k) => todo!("km to minutes"),
+            CongestionUnit::Kilometers(_) => todo!("km to minutes"),
             CongestionUnit::Minutes(m) => *m,
             CongestionUnit::None => 0.0,
         }
@@ -31,6 +31,13 @@ pub struct CongestionAmount {
 impl CongestionAmount {
     pub fn new(inbound: CongestionUnit, outbound: CongestionUnit) -> Self {
         Self { inbound, outbound }
+    }
+
+    pub fn new_minutes(inbound: f64, outbound: f64) -> Self {
+        Self {
+            inbound: CongestionUnit::Minutes(inbound),
+            outbound: CongestionUnit::Minutes(outbound),
+        }
     }
 
     pub fn none() -> Self {
@@ -58,6 +65,14 @@ impl CongestionAmount {
         Self {
             inbound: unit,
             outbound: unit,
+        }
+    }
+
+    pub fn get(&self, direction: CongestionDirection) -> CongestionUnit {
+        match direction {
+            CongestionDirection::Inbound => self.inbound,
+            CongestionDirection::Outbound => self.outbound,
+            CongestionDirection::Both => unreachable!(),
         }
     }
 }

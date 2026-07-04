@@ -1,6 +1,6 @@
 use std::path::PathBuf;
 
-use crate::{CongestionEntry, CongestionSource};
+use crate::{CongestionEntry, CongestionSource, CongestionView};
 
 #[derive(Clone)]
 pub enum CongestionScraperDatabase {
@@ -66,6 +66,10 @@ impl CongestionScraper {
 
             std::thread::sleep(polling_interval);
         }
+    }
+
+    pub fn make_view(&self) -> CongestionView {
+        CongestionView::make_view(&self.sources, &self.sql).expect("Failed to create view")
     }
 
     fn poll(&self) {
