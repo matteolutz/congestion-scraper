@@ -75,10 +75,12 @@ static REGEX: LazyLock<regex::Regex> = LazyLock::new(|| {
         .unwrap()
 });
 
+type Radio7DirectionClassifier = Box<dyn Fn(&Radio7ApiTraffic) -> CongestionDirection>;
+
 #[derive(Default)]
 pub struct Radio7Source {
     filters: Radio7Filters,
-    direction_classifier: Option<Box<dyn Fn(&Radio7ApiTraffic) -> CongestionDirection>>,
+    direction_classifier: Option<Radio7DirectionClassifier>,
 
     client: reqwest::blocking::Client,
 }
@@ -130,7 +132,7 @@ impl CongestionSource for Radio7Source {
 
         let (inbound_minutes, outbound_minutes): (f64, f64) = self
             .filters
-            .apply(all_warnings.traffic.into_values().flat_map(|values| values))
+            .apply(all_warnings.traffic.into_values().flatten())
             .filter_map(|item| {
                 let congestion_minutes = REGEX.captures(&item.title)?;
                 let minutes_match = congestion_minutes.name("minutes")?;

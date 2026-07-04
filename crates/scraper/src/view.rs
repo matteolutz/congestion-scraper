@@ -5,7 +5,6 @@ use itertools::Itertools;
 
 use crate::{CongestionAmount, CongestionSource};
 
-#[repr(packed)]
 pub struct CongestionTrainingInput {
     pub time_sin: f64,
     pub time_cos: f64,
@@ -57,7 +56,6 @@ impl CongestionTrainingInput {
     }
 }
 
-#[repr(packed)]
 pub struct CongestionTrainingPoint {
     pub input: CongestionTrainingInput,
     pub congestion: f64,

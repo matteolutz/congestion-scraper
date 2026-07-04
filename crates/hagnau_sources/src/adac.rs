@@ -98,6 +98,8 @@ impl ADACStreet {
 
 const PAGE_SIZE: usize = 10;
 
+type ADACDirectionClassifier = Box<dyn Fn(&ADACNewsItem) -> CongestionDirection>;
+
 /// ADAC congestion source
 ///
 /// Example request:
@@ -108,7 +110,7 @@ pub struct ADACSource {
     street: ADACStreet,
 
     filters: ADACFilters,
-    direction_classifier: Option<Box<dyn Fn(&ADACNewsItem) -> CongestionDirection>>,
+    direction_classifier: Option<ADACDirectionClassifier>,
 
     client: reqwest::blocking::Client,
 }
@@ -124,7 +126,7 @@ impl ADACSource {
         Self {
             country: country.into(),
             federal_state: federal_state.into(),
-            street: street.into(),
+            street,
             filters: ADACFilters::default(),
             direction_classifier: None,
             client,
