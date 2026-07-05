@@ -105,6 +105,9 @@ pub fn main() {
         RandomForestRegressor::fit(&x_matrix, &y, RandomForestRegressorParameters::default())
             .unwrap();
 
+    // let model_bytes: Vec<u8> = postcard::to_allocvec(&model).unwrap();
+    // std::fs::write("model.dat", &model_bytes).unwrap();
+
     let predict_points = 100;
 
     let mut prediction_chart = Vec::with_capacity(predict_points);
