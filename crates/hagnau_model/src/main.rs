@@ -4,7 +4,10 @@ use plotters::{
     drawing::IntoDrawingArea,
     element::PathElement,
     series::{DashedLineSeries, LineSeries},
-    style::{BLUE, GREEN, WHITE, full_palette::LIGHTBLUE},
+    style::{
+        BLUE, GREEN, WHITE,
+        full_palette::{LIGHTBLUE, LIGHTGREEN},
+    },
 };
 use scraper::CongestionTrainingInput;
 use smartcore::{
@@ -29,6 +32,7 @@ pub fn main() {
     let start_of_today: chrono::DateTime<chrono::Utc> = chrono::Utc::now()
         .with_time(chrono::NaiveTime::from_hms_opt(0, 0, 0).unwrap())
         .unwrap();
+
     let end_of_today: chrono::DateTime<chrono::Utc> = start_of_today + chrono::Duration::days(1);
 
     let root = BitMapBackend::new("plot.png", (1024, 768)).into_drawing_area();
@@ -48,8 +52,8 @@ pub fn main() {
 
     chart
         .configure_mesh()
-        .disable_x_mesh()
-        .disable_y_mesh()
+        // .disable_x_mesh()
+        // .disable_y_mesh()
         .x_labels(30)
         .max_light_lines(4)
         .y_desc("Congestion in minutes")
@@ -90,34 +94,71 @@ pub fn main() {
         .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], GREEN))
         .label("Outbound (to FN)");
 
-    let mut x = Vec::with_capacity(view.num_points() * CongestionTrainingInput::N_FEATURES);
-    let mut y = Vec::with_capacity(view.num_points());
+    // -------------------- Inbound Model --------------------
+    let mut inbound_x = Vec::with_capacity(view.num_points() * CongestionTrainingInput::N_FEATURES);
+    let mut inbound_y = Vec::with_capacity(view.num_points());
 
     for tp in view.training_points("adac", true) {
-        x.extend(tp.input.into_features());
-        y.push(tp.congestion);
+        inbound_x.extend(tp.input.into_features());
+        inbound_y.push(tp.congestion);
     }
 
-    let x_matrix =
-        DenseMatrix::new(y.len(), CongestionTrainingInput::N_FEATURES, x, false).unwrap();
+    let inbound_x_matrix = DenseMatrix::new(
+        inbound_y.len(),
+        CongestionTrainingInput::N_FEATURES,
+        inbound_x,
+        false,
+    )
+    .unwrap();
 
-    let model =
-        RandomForestRegressor::fit(&x_matrix, &y, RandomForestRegressorParameters::default())
-            .unwrap();
+    let inbound_model = RandomForestRegressor::fit(
+        &inbound_x_matrix,
+        &inbound_y,
+        RandomForestRegressorParameters::default(),
+    )
+    .unwrap();
+
+    // -------------------- Outbound Model --------------------
+    let mut outbound_x =
+        Vec::with_capacity(view.num_points() * CongestionTrainingInput::N_FEATURES);
+    let mut outbound_y = Vec::with_capacity(view.num_points());
+
+    for tp in view.training_points("adac", false) {
+        outbound_x.extend(tp.input.into_features());
+        outbound_y.push(tp.congestion);
+    }
+
+    let outbound_x_matrix = DenseMatrix::new(
+        outbound_y.len(),
+        CongestionTrainingInput::N_FEATURES,
+        outbound_x,
+        false,
+    )
+    .unwrap();
+
+    let outbound_model = RandomForestRegressor::fit(
+        &outbound_x_matrix,
+        &outbound_y,
+        RandomForestRegressorParameters::default(),
+    )
+    .unwrap();
 
     // let model_bytes: Vec<u8> = postcard::to_allocvec(&model).unwrap();
     // std::fs::write("model.dat", &model_bytes).unwrap();
 
     let predict_points = 100;
 
-    let mut prediction_chart = Vec::with_capacity(predict_points);
+    let mut inbound_prediction_chart = Vec::with_capacity(predict_points);
+    let mut outbound_prediction_chart = Vec::with_capacity(predict_points);
 
     let mut prediction_features =
         Vec::with_capacity(predict_points * CongestionTrainingInput::N_FEATURES);
 
     for i in 0..predict_points {
         let now = chrono::Utc::now() + chrono::Duration::minutes(i as i64 * 5);
-        prediction_chart.push(now);
+
+        inbound_prediction_chart.push(now);
+        outbound_prediction_chart.push(now);
 
         let prediction_input: CongestionTrainingInput = now.into();
 
@@ -131,16 +172,32 @@ pub fn main() {
         false,
     )
     .unwrap();
-    let prediction = model.predict(&prediction_matrix).unwrap();
 
-    let prediction_chart = prediction_chart.into_iter().zip(prediction.iter().copied());
+    let inbound_prediction = inbound_model.predict(&prediction_matrix).unwrap();
+    let outbound_prediction = outbound_model.predict(&prediction_matrix).unwrap();
+
+    let inbound_prediction_chart = inbound_prediction_chart
+        .into_iter()
+        .zip(inbound_prediction.iter().copied());
+    let outbound_prediction_chart = outbound_prediction_chart
+        .into_iter()
+        .zip(outbound_prediction.iter().copied());
 
     chart
         .draw_series(DashedLineSeries::new(
-            prediction_chart,
+            inbound_prediction_chart,
             1,
             5,
             LIGHTBLUE.into(),
+        ))
+        .unwrap();
+
+    chart
+        .draw_series(DashedLineSeries::new(
+            outbound_prediction_chart,
+            1,
+            5,
+            LIGHTGREEN.into(),
         ))
         .unwrap();
 
@@ -150,6 +207,11 @@ pub fn main() {
 
     println!("Prediction for the next..");
     for i in 0..predict_points {
-        println!("\t{} minutes: {}", i * 5, prediction[i])
+        println!(
+            "\t{} minutes: {} inbound, {} outbound",
+            i * 5,
+            inbound_prediction[i],
+            outbound_prediction[i]
+        );
     }
 }
