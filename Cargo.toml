@@ -1,5 +1,5 @@
 [workspace]
-members = ["crates/scraper", "crates/hagnau_sources", "crates/hagnau", "crates/hagnau_model"]
+members = ["crates/scraper", "crates/hagnau_sources", "crates/hagnau", "crates/hagnau_model", "crates/hagnau_wasm"]
 resolver = "2"
 
 [workspace.package]

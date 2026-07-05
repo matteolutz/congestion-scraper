@@ -708,7 +708,6 @@ dependencies = [
  "postcard",
  "scraper 0.1.0",
  "serde",
- "smartcore",
 ]
 
 [[package]]
@@ -720,6 +719,19 @@ dependencies = [
  "scraper 0.1.0",
  "scraper 0.27.0",
  "serde",
+]
+
+[[package]]
+name = "hagnau_wasm"
+version = "0.1.0"
+dependencies = [
+ "chrono",
+ "hagnau_sources",
+ "itertools",
+ "postcard",
+ "scraper 0.1.0",
+ "serde",
+ "wasm-bindgen",
 ]
 
 [[package]]
