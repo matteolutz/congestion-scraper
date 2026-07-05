@@ -9,11 +9,7 @@ use plotters::{
         full_palette::{LIGHTBLUE, LIGHTGREEN},
     },
 };
-use scraper::CongestionTrainingInput;
-use smartcore::{
-    ensemble::random_forest_regressor::{RandomForestRegressor, RandomForestRegressorParameters},
-    linalg::basic::matrix::DenseMatrix,
-};
+use scraper::{CongestionModel, random_forest::CongestionRandomForestModel};
 
 use crate::plotters_ext::IntoChronoHourly;
 
@@ -94,54 +90,8 @@ pub fn main() {
         .legend(|(x, y)| PathElement::new(vec![(x, y), (x + 20, y)], GREEN))
         .label("Outbound (to FN)");
 
-    // -------------------- Inbound Model --------------------
-    let mut inbound_x = Vec::with_capacity(view.num_points() * CongestionTrainingInput::N_FEATURES);
-    let mut inbound_y = Vec::with_capacity(view.num_points());
-
-    for tp in view.training_points("adac", true) {
-        inbound_x.extend(tp.input.into_features());
-        inbound_y.push(tp.congestion);
-    }
-
-    let inbound_x_matrix = DenseMatrix::new(
-        inbound_y.len(),
-        CongestionTrainingInput::N_FEATURES,
-        inbound_x,
-        false,
-    )
-    .unwrap();
-
-    let inbound_model = RandomForestRegressor::fit(
-        &inbound_x_matrix,
-        &inbound_y,
-        RandomForestRegressorParameters::default(),
-    )
-    .unwrap();
-
-    // -------------------- Outbound Model --------------------
-    let mut outbound_x =
-        Vec::with_capacity(view.num_points() * CongestionTrainingInput::N_FEATURES);
-    let mut outbound_y = Vec::with_capacity(view.num_points());
-
-    for tp in view.training_points("adac", false) {
-        outbound_x.extend(tp.input.into_features());
-        outbound_y.push(tp.congestion);
-    }
-
-    let outbound_x_matrix = DenseMatrix::new(
-        outbound_y.len(),
-        CongestionTrainingInput::N_FEATURES,
-        outbound_x,
-        false,
-    )
-    .unwrap();
-
-    let outbound_model = RandomForestRegressor::fit(
-        &outbound_x_matrix,
-        &outbound_y,
-        RandomForestRegressorParameters::default(),
-    )
-    .unwrap();
+    let inbound_model: CongestionRandomForestModel = view.make_inbound_model("adac").unwrap();
+    let outbound_model: CongestionRandomForestModel = view.make_outbound_model("adac").unwrap();
 
     // let model_bytes: Vec<u8> = postcard::to_allocvec(&model).unwrap();
     // std::fs::write("model.dat", &model_bytes).unwrap();
@@ -151,37 +101,41 @@ pub fn main() {
     let mut inbound_prediction_chart = Vec::with_capacity(predict_points);
     let mut outbound_prediction_chart = Vec::with_capacity(predict_points);
 
-    let mut prediction_features =
-        Vec::with_capacity(predict_points * CongestionTrainingInput::N_FEATURES);
-
     for i in 0..predict_points {
         let now = chrono::Utc::now() + chrono::Duration::minutes(i as i64 * 5);
 
         inbound_prediction_chart.push(now);
         outbound_prediction_chart.push(now);
-
-        let prediction_input: CongestionTrainingInput = now.into();
-
-        prediction_features.extend(prediction_input.into_features());
     }
 
-    let prediction_matrix = DenseMatrix::new(
-        predict_points,
-        CongestionTrainingInput::N_FEATURES,
-        prediction_features,
-        false,
+    let inbound_prediction = inbound_model
+        .predict(inbound_prediction_chart.iter().copied())
+        .unwrap();
+    let outbound_prediction = outbound_model
+        .predict(outbound_prediction_chart.iter().copied())
+        .unwrap();
+
+    let inbound_prediction_chart = std::iter::once(
+        view.latest_value_for("adac")
+            .map(|(timestamp, c)| (timestamp, c.inbound.as_minutes()))
+            .unwrap(),
     )
-    .unwrap();
+    .chain(
+        inbound_prediction_chart
+            .into_iter()
+            .zip(inbound_prediction.iter().copied()),
+    );
 
-    let inbound_prediction = inbound_model.predict(&prediction_matrix).unwrap();
-    let outbound_prediction = outbound_model.predict(&prediction_matrix).unwrap();
-
-    let inbound_prediction_chart = inbound_prediction_chart
-        .into_iter()
-        .zip(inbound_prediction.iter().copied());
-    let outbound_prediction_chart = outbound_prediction_chart
-        .into_iter()
-        .zip(outbound_prediction.iter().copied());
+    let outbound_prediction_chart = std::iter::once(
+        view.latest_value_for("adac")
+            .map(|(timestamp, c)| (timestamp, c.outbound.as_minutes()))
+            .unwrap(),
+    )
+    .chain(
+        outbound_prediction_chart
+            .into_iter()
+            .zip(outbound_prediction.iter().copied()),
+    );
 
     chart
         .draw_series(DashedLineSeries::new(
