@@ -71,15 +71,28 @@ impl CongestionTrainingPoint {
 }
 
 pub struct CongestionView {
+    /// Timestamps in sorted order
     timestamps: Vec<chrono::DateTime<chrono::Utc>>,
+
+    /// Entries for each source, in the same order as timestamps.
+    /// This allows for direct mapping from timestamps to a source entry by index.
     source_entries: HashMap<&'static str, Vec<Option<CongestionAmount>>>,
 }
 
 impl CongestionView {
+    pub fn timestamps(&self) -> impl Iterator<Item = chrono::DateTime<chrono::Utc>> {
+        self.timestamps.iter().copied()
+    }
+
+    pub fn num_points(&self) -> usize {
+        self.timestamps.len()
+    }
+
     pub fn timestamped_values_for(
         &self,
         source_id: &str,
-    ) -> impl Iterator<Item = (chrono::DateTime<chrono::Utc>, Option<CongestionAmount>)> {
+    ) -> impl DoubleEndedIterator<Item = (chrono::DateTime<chrono::Utc>, Option<CongestionAmount>)>
+    {
         let source_entries = self
             .source_entries
             .get(source_id)
@@ -91,14 +104,19 @@ impl CongestionView {
             .map(|(timestamp, entry)| (*timestamp, *entry))
     }
 
-    pub fn timestamps(&self) -> impl Iterator<Item = chrono::DateTime<chrono::Utc>> {
-        self.timestamps.iter().copied()
+    pub fn latest_value_for(
+        &self,
+        source_id: &str,
+    ) -> Option<(chrono::DateTime<chrono::Utc>, CongestionAmount)> {
+        self.timestamped_values_for(source_id)
+            .rev()
+            .skip_while(|(_, value)| value.is_none())
+            .next()
+            .map(|(timestamp, value)| (timestamp, value.unwrap()))
     }
+}
 
-    pub fn num_points(&self) -> usize {
-        self.timestamps.len()
-    }
-
+impl CongestionView {
     pub fn training_points(
         &self,
         source_id: &str,

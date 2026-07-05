@@ -32,7 +32,7 @@ impl<M: CongestionModel> CongestionModelExt<M> for M {
         let vals = self.predict(std::iter::once(x))?;
         let val = vals
             .first()
-            .expect("predict should return at least one value");
+            .expect("`predict()` should return at least one value");
         Ok(*val)
     }
 }
