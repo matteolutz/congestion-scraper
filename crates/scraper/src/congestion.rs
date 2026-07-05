@@ -24,8 +24,8 @@ pub enum CongestionDirection {
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 pub struct CongestionAmount {
-    pub(crate) inbound: CongestionUnit,
-    pub(crate) outbound: CongestionUnit,
+    pub inbound: CongestionUnit,
+    pub outbound: CongestionUnit,
 }
 
 impl CongestionAmount {
