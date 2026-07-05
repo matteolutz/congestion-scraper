@@ -7,3 +7,6 @@ edition.workspace = true
 chrono = "0.4.45"
 rusqlite = { version = "0.40.1", features = ["bundled"] }
 itertools = "0.15.0"
+
+
+smartcore = { version = "0.5.0", features = ["serde"] }

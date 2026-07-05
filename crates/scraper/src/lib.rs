@@ -12,3 +12,6 @@ pub use scraper::*;
 
 mod view;
 pub use view::*;
+
+mod model;
+pub use model::*;

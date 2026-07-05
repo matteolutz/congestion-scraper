@@ -3,7 +3,7 @@ use std::collections::HashMap;
 use chrono::{Datelike, Timelike};
 use itertools::Itertools;
 
-use crate::{CongestionAmount, CongestionSource};
+use crate::{CongestionAmount, CongestionModel, CongestionModelFitInput, CongestionSource};
 
 pub struct CongestionTrainingInput {
     pub time_sin: f64,
@@ -113,6 +113,25 @@ impl CongestionView {
                     }),
                 )
             })
+    }
+
+    fn make_model<M: CongestionModel>(
+        &self,
+        source_id: &str,
+        inbound: bool,
+    ) -> Result<M, M::Error> {
+        let n_points = self.num_points();
+        let points = self.training_points(source_id, inbound);
+
+        M::fit(CongestionModelFitInput { n_points, points })
+    }
+
+    pub fn make_inbound_model<M: CongestionModel>(&self, source_id: &str) -> Result<M, M::Error> {
+        self.make_model(source_id, true)
+    }
+
+    pub fn make_outbound_model<M: CongestionModel>(&self, source_id: &str) -> Result<M, M::Error> {
+        self.make_model(source_id, false)
     }
 }
 
